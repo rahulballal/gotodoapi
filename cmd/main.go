@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"net/http"
@@ -11,7 +13,8 @@ import (
 
 func main() {
 	configPtr := internal.LoadConfig()
-	mux := http.NewServeMux()
+	mux := echo.New()
+	mux.Use(middleware.Logger())
 
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	zerolog.SetGlobalLevel(configPtr.LogLevel)

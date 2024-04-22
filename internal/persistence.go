@@ -8,13 +8,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-type TodoPersistence interface {
-	Create(todo *NewTodoRequest) (*Todo, error)
-	GetAll() ([]*Todo, error)
-	GetByID(id string) (*Todo, error)
-	Update(todo *Todo) (*Todo, error)
-}
-
 func InitializePersistence(logger *zerolog.Logger) {
 	db, err := OpenConnection()
 	if err != nil {
@@ -43,12 +36,6 @@ func CloseConnection(db *sql.DB) {
 	if err != nil {
 		panic(err)
 	}
-}
-
-type TodosDb struct {
-	OpenConnection  func() (*sql.DB, error)
-	CloseConnection func(db *sql.DB)
-	logger          *zerolog.Logger
 }
 
 func NewTodosDb(logger *zerolog.Logger) TodosDb {

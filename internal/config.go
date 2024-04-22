@@ -6,11 +6,6 @@ import (
 	"strconv"
 )
 
-type Config struct {
-	Port     uint64
-	LogLevel zerolog.Level
-}
-
 func LoadConfig() *Config {
 	Port, _ := strconv.ParseUint(os.Getenv("PORT"), 10, 32)
 	LogLevelStr := os.Getenv("LOG_LEVEL")

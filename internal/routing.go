@@ -1,10 +1,12 @@
 package internal
 
-import "net/http"
+import (
+	"github.com/labstack/echo/v4"
+)
 
-func ConfigureRouting(mux *http.ServeMux, handlerMap *HandlerMap) {
-	mux.HandleFunc("GET /todos/", handlerMap.GetTodos)
-	mux.HandleFunc("POST /todos/", handlerMap.NewTodo)
-	mux.HandleFunc("GET /todos/{id}", handlerMap.GetTodo)
-	mux.HandleFunc("PUT /todos/{id}", handlerMap.UpdateTodo)
+func ConfigureRouting(mux *echo.Echo, handlerMap *HandlerMap) {
+	mux.GET("/todos/", handlerMap.GetTodos)
+	mux.POST("/todos/", handlerMap.NewTodo)
+	mux.GET("/todos/:id", handlerMap.GetTodo)
+	mux.PUT("/todos/:id", handlerMap.UpdateTodo)
 }
