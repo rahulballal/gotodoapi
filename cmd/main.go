@@ -2,30 +2,34 @@ package main
 
 import (
 	"fmt"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"net/http"
 
-	"github.com/rahulballal/gotodoapi/internal"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
+	"github.com/rahulballal/gotodoapi/internal/config"
+	"github.com/rahulballal/gotodoapi/internal/handlers"
+	"github.com/rahulballal/gotodoapi/internal/persistence"
+	"github.com/rahulballal/gotodoapi/internal/routing"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 func main() {
-	configPtr := internal.LoadConfig()
+
+	configPtr := config.LoadConfig()
 	mux := echo.New()
 	mux.Use(middleware.Logger())
 
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	zerolog.SetGlobalLevel(configPtr.LogLevel)
 
-	internal.InitializePersistence(&log.Logger)
-	todosDb := internal.NewTodosDb(&log.Logger)
-	handlerMap := &internal.HandlerMap{
+	persistence.InitializePersistence(&log.Logger)
+	todosDb := persistence.NewTodosDb(&log.Logger)
+	handlerMap := &handlers.HandlerMap{
 		Logger:      &log.Logger,
 		Persistence: &todosDb,
 	}
-	internal.ConfigureRouting(mux, handlerMap)
+	routing.ConfigureRouting(mux, handlerMap)
 	address := fmt.Sprintf(":%d", configPtr.Port)
 	log.Info().Msgf("Starting server on %s", address)
 	serverInitError := http.ListenAndServe(address, mux)
