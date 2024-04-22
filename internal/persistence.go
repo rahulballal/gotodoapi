@@ -2,24 +2,32 @@ package internal
 
 import (
 	"database/sql"
+	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
 type TodoPersistence interface {
-	Create(todo *Todo) (*Todo, error)
+	Create(todo *NewTodoRequest) (*Todo, error)
 	GetAll() ([]*Todo, error)
 	GetByID(id string) (*Todo, error)
 	Update(todo *Todo) (*Todo, error)
 }
 
-func InitializePersistence() {
+func InitializePersistence(logger *zerolog.Logger) {
 	db, err := OpenConnection()
 	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to open connection to database")
 		panic(err)
 	}
 	defer CloseConnection(db)
-	db.Exec("CREATE TABLE IF NOT EXISTS todos (id TEXT PRIMARY KEY, title TEXT, description TEXT, status TEXT)")
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS todos (id TEXT PRIMARY KEY, title TEXT, description TEXT, status TEXT, severity TEXT)`)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to create table")
+		panic(err)
+	}
+	logger.Info().Msg("Database initialized")
 }
 
 func OpenConnection() (*sql.DB, error) {
@@ -30,17 +38,25 @@ func OpenConnection() (*sql.DB, error) {
 	return db, nil
 }
 
-func CloseConnection(db *sql.DB) error {
+func CloseConnection(db *sql.DB) {
 	err := db.Close()
 	if err != nil {
-		return err
+		panic(err)
 	}
-	return nil
 }
 
 type TodosDb struct {
 	OpenConnection  func() (*sql.DB, error)
-	CloseConnection func(db *sql.DB) error
+	CloseConnection func(db *sql.DB)
+	logger          *zerolog.Logger
+}
+
+func NewTodosDb(logger *zerolog.Logger) TodosDb {
+	return TodosDb{
+		OpenConnection:  OpenConnection,
+		CloseConnection: CloseConnection,
+		logger:          logger,
+	}
 }
 
 func (t *TodosDb) Create(todo *NewTodoRequest) (*Todo, error) {
@@ -49,19 +65,28 @@ func (t *TodosDb) Create(todo *NewTodoRequest) (*Todo, error) {
 		return nil, err
 	}
 	defer t.CloseConnection(db)
-
-	stmt, err := db.Prepare("INSERT INTO todos (title, description, status) VALUES (?, ?, ?)")
+	uuidStr := uuid.New().String()
+	stmt, err := db.Prepare("INSERT INTO todos (id, title, description, status, severity) VALUES (?, ?, ?, ?,?)")
 	if err != nil {
 		return nil, err
 	}
-	defer stmt.Close()
+	defer func(stmt *sql.Stmt) {
+		_ = stmt.Close()
+	}(stmt)
 
-	_, err = stmt.Exec(todo.Title, todo.Description, todo.Status)
+	_, err = stmt.Exec(uuidStr, todo.Title, todo.Description, todo.Status, todo.Severity)
 	if err != nil {
+		t.logger.Err(err).Msg("Failed to insert todo")
 		return nil, err
 	}
 
-	return &Todo{}, nil
+	return &Todo{
+		ID:          uuidStr,
+		Title:       todo.Title,
+		Description: todo.Description,
+		Status:      todo.Status,
+		Severity:    todo.Severity,
+	}, nil
 }
 
 func (t *TodosDb) GetAll() ([]*Todo, error) {
@@ -75,12 +100,14 @@ func (t *TodosDb) GetAll() ([]*Todo, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		_ = rows.Close()
+	}(rows)
 
-	todos := []*Todo{}
+	var todos []*Todo
 	for rows.Next() {
 		todo := &Todo{}
-		err := rows.Scan(&todo.ID, &todo.Title, &todo.Description, &todo.Status)
+		err := rows.Scan(&todo.ID, &todo.Title, &todo.Description, &todo.Status, &todo.Severity)
 		if err != nil {
 			return nil, err
 		}
@@ -101,11 +128,13 @@ func (t *TodosDb) GetByID(id string) (*Todo, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer stmt.Close()
+	defer func(stmt *sql.Stmt) {
+		_ = stmt.Close()
+	}(stmt)
 
 	row := stmt.QueryRow(id)
 	todo := &Todo{}
-	err = row.Scan(&todo.ID, &todo.Title, &todo.Description, &todo.Status)
+	err = row.Scan(&todo.ID, &todo.Title, &todo.Description, &todo.Status, &todo.Severity)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +153,9 @@ func (t *TodosDb) Update(todo *Todo) (*Todo, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer stmt.Close()
+	defer func(stmt *sql.Stmt) {
+		_ = stmt.Close()
+	}(stmt)
 
 	_, err = stmt.Exec(todo.Title, todo.Description, todo.Status, todo.ID)
 	if err != nil {
